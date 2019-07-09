@@ -1,0 +1,427 @@
+<%@ page contentType="text/html; charset=utf-8" %>
+<%@ taglib uri="http://java.sun.com/jstl/core_rt" prefix="c" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/fmt" prefix="fmt" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/functions" prefix="fn" %>
+<%@ taglib uri="http://www.springframework.org/tags" prefix="spring" %>
+<%@ taglib uri="http://www.springframework.org/tags/form" prefix="form" %>
+<%@taglib prefix="shiro" uri="http://shiro.apache.org/tags" %>
+<c:set var="basePath" value="${pageContext.request.contextPath}"/>
+<!DOCTYPE HTML>
+<html lang="zh-cn">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><spring:message code="assetRepairManagement"/></title>
+    <jsp:include page="/resources/inc/head.jsp" flush="true"/>
+    <link href="${basePath}/resources/plugins/photoviewer/photoviewer.min.css" rel="stylesheet"/>
+</head>
+<body>
+<div id="mask" class="mask"></div>
+<div id="main">
+    <div class="search-panel-title"><p class="search-panel-title-p"><span><spring:message
+            code="assetMaintenance"/><spring:message code="searchArea"/></span></p></div>
+    <div class="search-panel-info div-padding-top-5  div-bottom-5">
+        <form id="searchMtFrom" action="" role="form" class="form-inline ">
+            <div class="div-left-10 div-bottom-5">
+                <div class="form-group div-left-10">
+                    <label for="itemTypeId" class="control-label "><spring:message code="assetType"/></label>
+                    <select class="form-control input-h select-padding-0" name="itemTypeId" id="itemTypeId"
+                            style="width: 160px;">
+                    </select>
+                </div>
+                <div class="form-group div-left-10">
+                    <label for="itemCode" class="control-label "><spring:message code="assetCoding"/></label>
+                    <input type="text" class="form-control input-h" id="itemCode" name="itemCode" style="width: 160px;">
+                </div>
+                <div class="form-group div-left-10">
+                    <label for="itemName" class="control-label "><spring:message code="assetName"/></label>
+                    <input type="text" class="form-control input-h" id="itemName" name="itemName" style="width: 160px;">
+                </div>
+                <div class="form-group div-left-10">
+                    <label for="userName" class="control-label "><spring:message code="reporter"/></label>
+                    <input type="text" class="form-control input-h" id="userName" name="userName" style="width: 160px;">
+                </div>
+            </div>
+            <div class="div-left-10 div-bottom-5">
+                <div class="form-group div-left-10">
+                    <label for="startTime" class="control-label"><spring:message code="escalationDate"/></label>
+                    <input type="text" class="form-control input-h Wdate"
+                           onclick="WdatePicker({dateFmt:'yyyy-MM-dd',maxDate:'#F{$dp.$D(\'endTime\')}'})"
+                           id="startTime" style="width: 160px;height: 28px" name="startTime">
+                </div>
+                <div class="form-group div-left-10">
+                    <label for="endTime" class="control-label"><spring:message code="to"/></label>
+                    <input type="text" class="form-control input-h Wdate"
+                           onclick="WdatePicker({dateFmt:'yyyy-MM-dd',minDate:'#F{$dp.$D(\'startTime\')}'})"
+                           id="endTime" style="width: 160px;height: 28px" name="endTime">
+                </div>
+                <div class="form-group div-left-10">
+                    <label for="suggestRepairSupplier" class="control-label "><spring:message
+                            code="recommendedMaintenanceVendor"/></label>
+                    <input type="text" class="form-control input-h" id="suggestRepairSupplier" name="companyName"
+                           style="width: 160px;">
+                </div>
+                <div class="form-group div-left-10">
+                    <label for="status" class="control-label "><spring:message code="maintenanceStatus"/></label>
+                    <select class="form-control input-h select-padding-0" name="status" id="status"
+                            style="width: 160px;">
+                        <option value=""><spring:message code="all"/></option>
+                        <option value="0"><spring:message code="waitRepare"/></option>
+                        <option value="1"><spring:message code="checkin"/></option>
+                        <option value="2"><spring:message code="confirmed"/></option>
+                        <c:if test="${upmsCompanyConfig.maintenanceConfirm==1}">
+                            <option value="4"><spring:message code="qualityConfirmation"/></option>
+                        </c:if>
+                        <option value="3"><spring:message code="repareFinish"/></option>
+                    </select>
+                </div>
+                <button type="button" class="btn btn-default button-hei div-left-30 btn-color"
+                        onclick="searchMt()"><spring:message code="search"/>
+                </button>
+            </div>
+        </form>
+    </div>
+    <div id="toolbar">
+        <shiro:hasPermission name="repair:itemRepair:create">
+            <button type="button" class="btn btn-default  button-hei btn-color" onclick="createAction()"><i
+                    class="zmdi zmdi-plus"></i> <spring:message code="add"/>
+            </button>
+        </shiro:hasPermission>
+        <shiro:hasPermission name="repair:itemRepair:editRepairBy">
+        <button type="button" class="btn btn-default  button-hei btn-color" onclick="editRepairBy()"> <spring:message code="modifyMaintenancePersonCharge"/></button>
+        </shiro:hasPermission>
+    </div>
+    <table id="tables" class="table-condensed"></table>
+</div>
+<jsp:include page="/resources/inc/footer.jsp" flush="true"/>
+<script language="javascript" type="text/javascript" src="/resources/admin/plugins/upload/ajaxfileupload.js"></script>
+<script src="${basePath}/resources/plugins/photoviewer/photoviewer.min.js"></script>
+<script>
+    var $table = $('#tables');
+    $(function () {
+        var curMs = new Date().getTime();
+        var resDay = new Date(curMs).format("yyyy-MM-dd");
+        var for1Day = curMs - 7 * 24 * 60 * 60 * 1000;
+        var f1Day = new Date(for1Day).format("yyyy-MM-dd");
+        $("#endTime").val(resDay);
+        $("#startTime").val(f1Day);
+        $.dynamicselect.initSelect("itemTypeId", "${basePath}/manage/itemInfo/itemTypeList", "itemTypeName", "id", "<spring:message code="pleaseChoose"/>");
+        // bootstrap table初始化
+        $table.bootstrapTable({
+            url: '${basePath}/manage/itemRepair/list',
+            height: getHeight() - 100,
+            striped: true,
+            search: false,
+            showRefresh: false,
+            showColumns: true,
+            minimumCountColumns: 2,
+            clickToSelect: true,
+            detailView: false,
+            detailFormatter: 'detailFormatter',
+            pagination: true,
+            paginationLoop: false,
+            sidePagination: 'server',
+            silentSort: false,
+            smartDisplay: false,
+            escape: true,
+            searchOnEnterKey: true,
+            idField: 'id',
+            maintainSelected: true,
+            toolbar: '#toolbar',
+            resizable: false,
+            queryParams: function (params) {
+                var param = new Object();
+                var map = new Object();
+                map.search = params.search;
+                map.sort = params.sort;
+                map.sort = params.order
+                param.currentPage = (params.offset / params.limit + 1);
+                param.pageSize = params.limit;
+                var searchParam = $.serializeObject($('#searchMtFrom'));
+                $.extend(map, searchParam);
+                param.map = map;
+                return param;
+            },
+            responseHandler: function (res) {
+                var result = new Object();
+                result.total = res.recordCount;
+                result.rows = res.voList;
+                return result;
+            },
+            columns: [
+                {field: 'ck', checkbox: true, halign: 'center', valign: 'middle'},
+                {
+                    field: 'action',
+                    title: '<spring:message code="operate"/>',
+                    align: 'center',
+                    formatter: 'actionFormatter',
+                    events: 'actionEvents',
+                    clickToSelect: false,
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                {
+                    field: 'repairCode',
+                    title: '<spring:message code="repareCode"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                {
+                    field: 'itemTypeName',
+                    title: '<spring:message code="assetType"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                {
+                    field: 'itemCode',
+                    title: '<spring:message code="assetCoding"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                {
+                    field: 'itemName',
+                    title: '<spring:message code="assetName"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                {
+                    field: 'requestName',
+                    title: '<spring:message code="reporter"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                {
+                    field: 'companyName',
+                    title: '<spring:message code="recommendedMaintenanceVendor"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                {
+                    field: 'requestTime',
+                    title: '<spring:message code="escalationTime"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle',
+                    formatter: 'dataFormatter'
+                },
+                {
+                    field: '',
+                    title: '<spring:message code="repairDetails"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle',
+                    formatter: 'repairDetailFormatter'
+                },
+                {
+                    field: 'status',
+                    title: '<spring:message code="status"/>',
+                    align: 'center',
+                    formatter: 'statusFormatter',
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                {
+                    field: '',
+                    title: '<spring:message code="turnMaintenance"/>',
+                    align: 'center',
+                    halign: 'center',
+                    valign: 'middle',
+                    formatter: 'repairFormatter'
+                },
+            ]
+        });
+    });
+
+    // 格式化操作按钮
+    function actionFormatter(value, row, index) {
+        return [
+            '<a class="update" href="javascript:;" onclick="updateAction(' + row.id + ',' + row.status + ')" data-toggle="tooltip" title="<spring:message code="edit"/>"><i class="glyphicon glyphicon-edit pencil-color"></i></a>　',
+            '<a class="delete" href="javascript:;" onclick="deleteAction(' + row.id + ',' + row.status + ')" data-toggle="tooltip" title="<spring:message code="remove"/>"><i class="glyphicon glyphicon-remove remove-color"></i></a>   &nbsp; ',
+            '<a class="delete" href="javascript:;" onclick="submitAction(' + row.id + ',' + row.status + ')" data-toggle="tooltip" title="<spring:message code="submit"/>"><i class="glyphicon glyphicon-ok ok-color"></i></a>'
+        ].join('');
+    }
+
+    //维修明细
+    function repairDetailFormatter(value, row, index) {
+        return [
+            '<a  href="javascript:;" onclick="repairListAction(' + row.id + ')" data-toggle="tooltip" title="<spring:message code="repairDetails"/>"><i class="glyphicon glyphicon-list"></i></a>',
+        ].join('');
+    }
+
+    // 格式化保养操作按钮
+    function repairFormatter(value, row, index) {
+        return [
+            '<a  href="javascript:;" onclick="toMaintenanceAction(' + row.id + ')" data-toggle="tooltip" title="<spring:message code="turnMaintenance"/>"><i class="glyphicon glyphicon-heart" style="color: red;font-size: 16px"></i></a>',
+        ].join('');
+    }
+
+    //时间格式化
+    function dataFormatter(value, row, index) {
+        return value == null ? "" : formatDate(value);
+    }
+
+    //格式化状态
+    function statusFormatter(value, row, index) {
+        if (value == 0) {
+            return '<span class="label label-warning"><spring:message code="waitRepare"/></span>';
+        } else if (value == 1) {
+            return '<span class="label label-default"><spring:message code="checkin"/></span>';
+        } else if (value == 2) {
+            return '<span class="label label-primary"><spring:message code="confirmed"/></span>';
+        } else if (value == 3){
+            return '<span class="label label-success"><spring:message code="repareFinish"/></span>';
+        }
+        <c:if test="${upmsCompanyConfig.maintenanceConfirm==1}">
+        if (value == 4) {
+            return '<span class="label label-info">品质确认</span>';
+        }
+        </c:if>
+    }
+
+    function editRepairBy() {
+        var ids = new Array();
+        var rows = $table.bootstrapTable('getSelections');
+        if (rows.length == 0) {
+            pxconfirm.pxalert("<spring:message code="notChoose"/>", pxconfirm.alert.TYPE.INFO);
+            return;
+        } else {
+            for (var i in rows) {
+                if(rows[i].status==0){
+                    ids.push(rows[i].id);
+                }
+            }
+        }
+        if(ids.length==0){
+            pxconfirm.pxalert("<spring:message code="statusUneditable"/>", pxconfirm.alert.TYPE.INFO);
+            return;
+        }
+        updateDialog = pxconfirm.dialog('<spring:message code="edit"/>', 'col-md-8 col-sm-offset-2', 'url:${basePath}/manage/itemRepair/editRepairBy/'+ids.join('-'), "",
+            [{
+                '<spring:message code="save"/>': function () {
+                    updateRepairBy();
+                    return false;
+                }
+            }]);
+    }
+
+    // 新增
+    var createDialog;
+
+    function createAction() {
+        createDialog = pxconfirm.dialog('<spring:message code="add"/>', 'col-md-8 col-sm-offset-2', 'url:${basePath}/manage/itemRepair/create', "",
+            [{
+                '<spring:message code="save"/>': function () {
+                    createSubmit();
+                    return false;
+                }
+            }]);
+    }
+
+    // 编辑
+    var updateDialog;
+
+    function updateAction(id, status) {
+        if (status >= 3) {
+            pxconfirm.pxalert("<spring:message code="statusCanNotBeEdited"/>", pxconfirm.alert.TYPE.INFO);
+            return;
+        }
+        if (status == 2) {
+            updateDialog = pxconfirm.dialog('<spring:message code="edit"/>', 'col-md-8 col-sm-offset-2', 'url:${basePath}/manage/itemRepair/detailS/' + id, "",
+                [{
+                    '<spring:message code="submit"/>': function () {
+                        createSSubmit();
+                        return false;
+                    }
+                }]);
+        } else {
+            updateDialog = pxconfirm.dialog('<spring:message code="edit"/>', 'col-md-8 col-sm-offset-2', 'url:${basePath}/manage/itemRepair/detail/' + id, "",
+                [{
+                    '<spring:message code="save"/>': function () {
+                        createSubmit();
+                        return false;
+                    }
+                }, {
+                    '<spring:message code="SaveAndSubmit"/>': function () {
+                        createAddSubmit();
+                        return false;
+                    }
+                }]);
+        }
+    }
+
+    // 删除
+    function deleteAction(id, status) {
+        var ids = new Array();
+        if (id) {
+            if (status == 0) {
+                ids.push(id);
+            } else {
+                pxconfirm.pxalert("<spring:message code="thisStatusCanNotDeleted"/>", pxconfirm.alert.TYPE.INFO);
+                return;
+            }
+        }
+        pxconfirm.pxconfirm("<spring:message code="confirmDelete"/>？", function () {
+            $.pxajax('${basePath}/manage/itemRepair/delete/' + ids.join("-"), function () {
+                $table.bootstrapTable('refresh');
+            }, 'get');
+        });
+    }
+
+    // 提交
+    function submitAction(id, status) {
+        if (id) {
+            if (status != 3) {
+
+            } else {
+                pxconfirm.pxalert("<spring:message code="stateCanNotBeSubmitted"/>", pxconfirm.alert.TYPE.INFO);
+                return;
+            }
+        }
+        var ss = status;
+        if (status == 0) {
+            ss = 2
+        }
+        if (status == 2) {
+            ss = 3
+        }
+        pxconfirm.pxconfirm("<spring:message code="confirmSubmit"/>？", function () {
+            $.pxajax('${basePath}/manage/itemRepair/submit?id=' + id + '&status=' + ss, function () {
+                $table.bootstrapTable('refresh');
+            }, 'get');
+        });
+    }
+
+    // 维修明细
+    var repairListDialog;
+
+    function repairListAction(id) {
+        repairListDialog = pxconfirm.dialog('<spring:message code="repairDetails"/>', 'col-md-12 ', 'url:${basePath}/manage/itemRepair/repairList?repairId=' + id, "",
+            [{}]);
+    }
+
+    // 转保养
+    var repairToMaintenanceListDialog;
+
+    function toMaintenanceAction(id) {
+        repairToMaintenanceListDialog = pxconfirm.dialog('<spring:message code="assetMaintenanceTransferOrder"/>', 'col-md-8 col-sm-offset-2', 'url:${basePath}/manage/itemRepair/repairToMaintenance?repairId=' + id, "",
+            [{
+                '<spring:message code="save"/>': function () {
+                    createSubmit();
+                    return false;
+                }
+            }]);
+    }
+
+    function searchMt() {
+        $table.bootstrapTable("refresh");
+    }
+</script>
+</body>
+</html>
